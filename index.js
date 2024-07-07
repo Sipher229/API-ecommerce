@@ -18,21 +18,15 @@ app.use(cors())
 
 app.use('/auth', router)
 
-app.get("/customers/all", verifyAccessToken, (req, res) => {
+app.get("/customers/all", verifyAccessToken, async (req, res, next) => {
     const qry = "SELECT fname, lname, email FROM customers"
     db.query(qry, (err, response) => {
         if (err) {
-            res.json({
-                data: null,
-                message: err.message,
-                statusCode: 500,
-                success: false
-                
-            })
-            return
+
+            return next(createError.ExpectationFailed())
         }
         const data = response.rows
-        res.json({
+        res.status(200).json({
             data: data,
             message: "data retrived successfully",
             success: true   

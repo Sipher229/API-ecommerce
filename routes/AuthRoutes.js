@@ -2,7 +2,8 @@ import express from "express";
 import db from "../dbConnection.js";
 import bcrypt from 'bcrypt'
 import createError from "http-errors";
-import { signAccessToken } from "../jwtLogic.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../jwtLogic.js";
+
 
 
 const router = express.Router()
@@ -14,7 +15,7 @@ router.post('/register', async (req, res, next) => {
     const checkExistQry = 'SELECT email FROM customers WHERE email = $1'
 
     try{
-        const result = await (await db.query(checkExistQry, [email])).rows
+        const result = (await db.query(checkExistQry, [email])).rows
         if(result.length !== 0){
             return next(createError.Conflict('Email already exists'))
         }
@@ -29,9 +30,11 @@ router.post('/register', async (req, res, next) => {
 
             try{
                 const token = await signAccessToken({email})
-                return res.json({
+                const refreshToken = await signRefreshToken({email})
+                return res.status(200).json({
                     message: "registered succcessfully",
                     token: token,
+                    refreshToken: refreshToken,
                 })
             }catch(error){
                 next(createError.InternalServerError(error))
@@ -57,12 +60,17 @@ router.post('/login', async (req, res, next) => {
             if (err) return next(createError.BadRequest('password is required'))
             
             if (result){
-                const token = await signAccessToken({email})
-
-                return res.json({
-                    message: "logged in successfully",
-                    token: token
-                })
+                try{
+                    const token = await signAccessToken({email})
+                    const refreshToken = await signRefreshToken({email})
+                    return res.status(200).json({
+                        message: "logged in successfully",
+                        token: token,
+                        refreshToken: refreshToken,
+                    })
+                }catch(error){
+                    console.log(error.message)
+                }
             }
             else{
                 return next(createError.Conflict('Wrong password!'))
@@ -74,6 +82,26 @@ router.post('/login', async (req, res, next) => {
         return next(createError.InternalServerError("server error: " + error.message))
     }
 
+
+})
+
+router.post('/refresh-token', async (req, res, next) => {
+    const {refreshToken} = req.body
+    if (!refreshToken) next(createError.BadRequest())
+    
+    try{
+        const result = await verifyRefreshToken(refreshToken)
+        
+        const newToken = await signAccessToken({email: result})
+        const newRefreshToken = await signRefreshToken({email: result})
+        res.status(200).json({
+            message: 'successfully refreshed token',
+            token: newToken,
+            refreshToken: newRefreshToken,
+        })
+    }catch(error){
+        next(createError.Unauthorized('could not refresh token'))
+    }
 
 })
 
