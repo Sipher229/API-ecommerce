@@ -68,7 +68,7 @@ const verifyRefreshToken = (refreshToken) => {
 
         jwt.verify(refreshToken, process.env.REFRESH_KEY, (err, payload) =>{
             if(err) return reject(createError.Unauthorized())
-            
+             
             const email = payload.aud
             resolve(email)
         })
